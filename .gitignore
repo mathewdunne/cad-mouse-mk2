@@ -2,5 +2,4 @@
 .vscode
 .DS_Store
 
-pcbs/src/mcu_adapter_kicad/.history
-pcbs/src/sensor_board_kicad/.history
+**/.history/
