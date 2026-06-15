@@ -15,7 +15,7 @@ void setup() {
   // Initialize USB HID first
   hidController.begin();
 
-  if (Config::ENABLE_TELEMETRY) {
+  if (Config::ENABLE_TELEMETRY || Config::ENABLE_CALIBRATION_SERIAL) {
     Serial.begin(115200);
     delay(200);
   }
@@ -31,5 +31,6 @@ void setup() {
 
 void loop() {
   hidController.task();
+  telemetryController.update();
   stateMachine.update();
 }

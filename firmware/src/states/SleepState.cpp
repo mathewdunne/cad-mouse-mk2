@@ -13,6 +13,11 @@ void SleepState::enter() {
 void SleepState::update() {
   inputController.update();
 
+  if (telemetryController.rawModeActive()) {
+    stateMachine.changeState(&StateMachine::idleState);
+    return;
+  }
+
   if (inputController.takeActivity()) {
     stateMachine.changeState(&StateMachine::idleState);
     return;

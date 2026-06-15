@@ -1,3 +1,9 @@
 .pio
 .vscode
 .DS_Store
+
+**/.history/
+firmware/calibration/out/
+firmware/include/CalibrationData.h
+
+firmware/calibration/.venv/

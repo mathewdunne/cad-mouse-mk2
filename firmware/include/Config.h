@@ -5,6 +5,7 @@
 namespace Config {
 
 const bool ENABLE_TELEMETRY = true;
+const bool ENABLE_CALIBRATION_SERIAL = true;
 
 // Hardware pins (XIAO RP2040)
 const int PIN_RIGHT_BTN = D0;

@@ -23,6 +23,8 @@ There is bleed between the axis due to the way each of them is calculated indepe
 
 If you want to experiment with different motion processing approaches, you can modify the [`MotionController`](src/controllers/MotionController.cpp). The current implementation is as follows:
 
+The firmware now also supports an optional calibrated 9D-to-6D decoder. Run the guided Python workflow in [`calibration/`](calibration/) to generate a local `include/CalibrationData.h`; if that file is absent, the firmware falls back to the hand-derived mapping below.
+
 **Sensor layout:**
 - `mag1` = bottom
 - `mag2` = top left
