@@ -22,7 +22,7 @@ const int ZERO_SAMPLES = 200;
 // Gains and sign fixes
 const float GAIN_T[3] = {28.0, 28.0, 24.0};
 const float GAIN_R[3] = {18.0, 18.0, 20.0};
-const int SIGN_AXIS[6] = {-1, +1, -1, +1, +1, +1};
+const int SIGN_AXIS[6] = {+1, -1, +1, -1, -1, -1};
 
 // Dead zones
 const float DEAD_T = 16.0;
