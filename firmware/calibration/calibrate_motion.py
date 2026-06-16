@@ -35,18 +35,18 @@ RANGE_WARNING_THRESHOLD_MT = 45.0
 # These describe the intended physical gesture; if a direction feels inverted on
 # your build, the sign is recovered from the data regardless of how it is labeled.
 MOVEMENT_DESCRIPTIONS = {
-    "+Tx": "Translate Left",
-    "-Tx": "Translate Right",
-    "+Ty": "Translate Forward (away from you)",
-    "-Ty": "Translate Backward (toward you)",
-    "+Tz": "Translate Up (lift the knob)",
-    "-Tz": "Translate Down (push the knob)",
-    "+Rx": "Tilt Forward (pitch the top away)",
-    "-Rx": "Tilt Backward (pitch the top toward you)",
-    "+Ry": "Roll Right (tilt the right side down)",
-    "-Ry": "Roll Left (tilt the left side down)",
-    "+Rz": "Twist Counter-Clockwise (yaw left, viewed from above)",
-    "-Rz": "Twist Clockwise (yaw right, viewed from above)",
+    "+Tx": "Translate Right",
+    "-Tx": "Translate Left",
+    "+Ty": "Translate Backward (toward you)",
+    "-Ty": "Translate Forward (away from you)",
+    "+Tz": "Translate Down (push the knob)",
+    "-Tz": "Translate Up (lift the knob)",
+    "+Rx": "Tilt Backward (pitch the top toward you)",
+    "-Rx": "Tilt Forward (pitch the top away)",
+    "+Ry": "Roll Left (tilt the left side down)",
+    "-Ry": "Roll Right (tilt the right side down)",
+    "+Rz": "Twist Clockwise (yaw right, viewed from above)",
+    "-Rz": "Twist Counter-Clockwise (yaw left, viewed from above)",
 }
 
 
