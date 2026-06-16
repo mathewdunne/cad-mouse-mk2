@@ -41,6 +41,12 @@ enum AxisIndex {
   AXIS_RY,
   AXIS_RZ
 };
+
+// Sub-count residual below which an axis is snapped to zero so it truly settles
+// after the filter's release tail. The HID layer casts to int16, so anything
+// under 1.0 is already reported as zero; snapping here lets motionActive_ clear
+// (and idle/sleep proceed) instead of latching on a vanishing filter value.
+constexpr float kAxisSettle = 1.0;
 }  // namespace
 
 void MotionController::reset() {
@@ -58,6 +64,20 @@ float MotionController::clampf(float v, float lo, float hi) {
 
 float MotionController::hardZero(float v, float thr) {
   return (fabs(v) < thr) ? 0.0 : v;
+}
+
+float MotionController::softDeadzone(float v, float dead, float limit) {
+  // Continuous dead zone: inputs within +/-dead map to zero, inputs beyond it
+  // ramp up *from* zero (rather than jumping to ~dead like a hard gate). The
+  // surviving range [dead, limit] is rescaled back to [0, limit] so the axis
+  // still reaches full scale. This removes the onset "pop" and, paired with the
+  // low-pass, damps threshold flicker on noisy, large-dead-zone axes.
+  const float a = fabs(v);
+  if (a <= dead) return 0.0;
+  const float span = limit - dead;
+  if (span <= 0.0) return v;  // degenerate dead zone >= limit: pass through
+  const float scaled = (a - dead) * (limit / span);
+  return (v < 0.0) ? -scaled : scaled;
 }
 
 float MotionController::lowpass(float prev, float x, float dt, float tau) {
@@ -161,20 +181,21 @@ void MotionController::compute(const float raw[9], const float* baseline, float 
     y[AXIS_RZ] = Config::SIGN_AXIS[AXIS_RZ] * rz * Config::GAIN_R[AXIS_RZ - 3];
   }
 
-  // Filter, clamp to range and dead zones.
+  // Soft dead zone -> filter -> clamp -> settle.
+  // Each axis is shaped through its dead zone *before* filtering: rest noise
+  // collapses to zero (so the filter holds at rest) and real motion ramps in
+  // continuously. The low-pass then smooths the shaped command, and a sub-count
+  // settle snap lets the release tail reach a true zero.
   motionActive_ = false;
   for (int i = 0; i < 6; i++) {
     const float dead = axisDead(i);
+    const float shaped = softDeadzone(y[i], dead, Config::AXIS_LIMIT);
 
-    if (fabs(y[i]) < dead) {
-      filt_[i] = 0.0;
-    } else {
-      filt_[i] = lowpass(filt_[i], y[i], dt, Config::SMOOTH_TAU_S[i]);
-    }
+    filt_[i] = lowpass(filt_[i], shaped, dt, Config::SMOOTH_TAU_S[i]);
 
     const float limited =
         clampf(filt_[i], -Config::AXIS_LIMIT, Config::AXIS_LIMIT);
-    out[i] = hardZero(limited, dead);
+    out[i] = hardZero(limited, kAxisSettle);
     if (out[i] != 0.0) {
       motionActive_ = true;
     }

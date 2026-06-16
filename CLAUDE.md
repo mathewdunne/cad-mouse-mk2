@@ -68,7 +68,7 @@ Ry = mag3z - mag2z                              // roll: right vs left
 Rz = sum_i (posXi*magYi - posYi*magXi)         // yaw: triangle-position-weighted swirl
 ```
 
-Each axis is then multiplied by a per-axis sign and gain (`Config::SIGN_AXIS`, `Config::GAIN_T`/`GAIN_R`), passed through a dead-zone (`DEAD_T`/`DEAD_R`), a one-pole low-pass (per-axis time constant `SMOOTH_TAU_S[6]`), clamped to `±AXIS_LIMIT` (350, must match the HID descriptor's LOGICAL_MIN/MAX), and finally hard-zeroed within the dead zone.
+Each axis is then multiplied by a per-axis sign and gain (`Config::SIGN_AXIS`, `Config::GAIN_T`/`GAIN_R`), shaped through a soft (scaled) dead-zone, smoothed by a one-pole low-pass (per-axis time constant `SMOOTH_TAU_S[6]`), clamped to `±AXIS_LIMIT` (350, must match the HID descriptor's LOGICAL_MIN/MAX), and finally snapped to zero below a sub-count settle threshold so the release tail reaches a true rest. The soft dead-zone maps inputs within the dead band to zero and rescales the surviving range `[dead, AXIS_LIMIT]` back to `[0, AXIS_LIMIT]`, so motion ramps in continuously instead of popping at the threshold. The dead-zone width per axis comes from `CalibrationData::DEADZONE` when a calibration header is present, otherwise from `DEAD_T`/`DEAD_R`.
 
 Known limitations documented in [firmware/README.md](firmware/README.md): the axes are computed independently (bleed between them) and the sensors are assumed linear (they aren't). The whole motion-processing block is the intended place to experiment.
 

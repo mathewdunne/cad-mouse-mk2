@@ -10,6 +10,7 @@ class MotionController {
  private:
   static float clampf(float v, float lo, float hi);
   static float hardZero(float v, float thr);
+  static float softDeadzone(float v, float dead, float limit);
   static float lowpass(float prev, float x, float dt, float tau);
   static float axisBaseDead(int i);
   static float axisDead(int i);

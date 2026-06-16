@@ -12,8 +12,13 @@ const float DEAD_T = 16.0;
 const float DEAD_R = 20.0;
 
 // Smoothing (per-axis one-pole time constant, [Tx,Ty,Tz,Rx,Ry,Rz])
-const float SMOOTH_TAU_S[6] = {0.16, 0.14, 0.10, 0.06, 0.06, 0.09};
+const float SMOOTH_TAU_S[6] = {0.132, 0.128, 0.073, 0.149, 0.02, 0.034};
 ```
+
+The `SMOOTH_TAU_S` values are device-specific feel parameters: longer means more
+smoothing (quieter but laggier). The calibration workflow prints a data-driven
+`SMOOTH_TAU_S[6]` line in its report — sized so every axis settles to a uniform
+residual-jitter floor — that you can copy in as a starting point and tune by ear.
 
 ⚠️ Refer to the video at [6:23](https://youtu.be/62xlzGs8LXA?si=ld2shDCaTxOLIGB8&t=383) for a demo of driver support. Related settings can be found commented in[`platformio.ini`](../platformio.ini).
 
@@ -43,3 +48,12 @@ Rz = sum_i (posXi * magYi - posYi * magXi)
 - `Ry`: left-right z difference across the top edge
 - `Rx`: top pair versus bottom, scaled for the triangle geometry
 - `Rz`: twist estimate from the x/y sensor positions
+
+**Output conditioning (both decoders):** each of the six axes is then shaped
+through a soft dead zone, smoothed by the per-axis low-pass, clamped to
+`±AXIS_LIMIT`, and snapped to zero below a sub-count settle threshold. The soft
+dead zone maps inputs inside the dead band to zero and rescales the surviving
+range back to full scale, so motion ramps in smoothly from the threshold instead
+of jumping ("popping") to the dead-zone width. Dead-zone widths come from
+`CalibrationData::DEADZONE` when a calibration header is present, otherwise from
+`DEAD_T`/`DEAD_R`.
