@@ -169,7 +169,7 @@ void MotionController::compute(const float raw[9], const float* baseline, float 
     if (fabs(y[i]) < dead) {
       filt_[i] = 0.0;
     } else {
-      filt_[i] = lowpass(filt_[i], y[i], dt, Config::SMOOTH_TAU_S);
+      filt_[i] = lowpass(filt_[i], y[i], dt, Config::SMOOTH_TAU_S[i]);
     }
 
     const float limited =

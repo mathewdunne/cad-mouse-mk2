@@ -11,8 +11,8 @@ const int SIGN_AXIS[6] = {+1, -1, +1, -1, -1, -1};
 const float DEAD_T = 16.0;
 const float DEAD_R = 20.0;
 
-// Smoothing
-const float SMOOTH_TAU_S = 0.08;
+// Smoothing (per-axis one-pole time constant, [Tx,Ty,Tz,Rx,Ry,Rz])
+const float SMOOTH_TAU_S[6] = {0.16, 0.14, 0.10, 0.06, 0.06, 0.09};
 ```
 
 ⚠️ Refer to the video at [6:23](https://youtu.be/62xlzGs8LXA?si=ld2shDCaTxOLIGB8&t=383) for a demo of driver support. Related settings can be found commented in[`platformio.ini`](../platformio.ini).

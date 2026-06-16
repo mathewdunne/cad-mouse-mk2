@@ -68,7 +68,7 @@ Ry = mag3z - mag2z                              // roll: right vs left
 Rz = sum_i (posXi*magYi - posYi*magXi)         // yaw: triangle-position-weighted swirl
 ```
 
-Each axis is then multiplied by a per-axis sign and gain (`Config::SIGN_AXIS`, `Config::GAIN_T`/`GAIN_R`), passed through a dead-zone (`DEAD_T`/`DEAD_R`), a one-pole low-pass (time constant `SMOOTH_TAU_S`), clamped to `±AXIS_LIMIT` (350, must match the HID descriptor's LOGICAL_MIN/MAX), and finally hard-zeroed within the dead zone.
+Each axis is then multiplied by a per-axis sign and gain (`Config::SIGN_AXIS`, `Config::GAIN_T`/`GAIN_R`), passed through a dead-zone (`DEAD_T`/`DEAD_R`), a one-pole low-pass (per-axis time constant `SMOOTH_TAU_S[6]`), clamped to `±AXIS_LIMIT` (350, must match the HID descriptor's LOGICAL_MIN/MAX), and finally hard-zeroed within the dead zone.
 
 Known limitations documented in [firmware/README.md](firmware/README.md): the axes are computed independently (bleed between them) and the sensors are assumed linear (they aren't). The whole motion-processing block is the intended place to experiment.
 

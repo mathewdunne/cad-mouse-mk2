@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -30,6 +30,12 @@ RAW_CHANNELS = (
 )
 EXTRA_SHORT_RANGE_LINEAR_LIMIT_MT = 50.0
 RANGE_WARNING_THRESHOLD_MT = 45.0
+
+# Bounds for the suggested smoothing time constant (seconds). The lower bound
+# keeps a touch of smoothing on even the quietest axis; the upper bound caps the
+# latency the heuristic is allowed to introduce on the noisiest one.
+SMOOTH_TAU_MIN_S = 0.02
+SMOOTH_TAU_MAX_S = 0.25
 
 # Human-readable guidance for each signed motion the operator is asked to hold.
 # These describe the intended physical gesture; if a direction feels inverted on
@@ -75,6 +81,13 @@ class CalibrationResult:
     signal_to_noise: np.ndarray
     warnings: List[str]
     can_generate_header: bool
+    # Decoded rest-noise std (output counts) and the per-axis smoothing time
+    # constant suggested from it. These are advisory only — they are reported,
+    # not written into CalibrationData.h, since smoothing is a feel parameter.
+    decoded_rest_std: np.ndarray = field(default_factory=lambda: np.zeros(6))
+    suggested_smooth_tau: np.ndarray = field(default_factory=lambda: np.zeros(6))
+    smoothing_target_counts: float = 1.0
+    smoothing_loop_hz: float = 100.0
 
 
 def parse_raw_line(line: str) -> RawSample:
@@ -183,12 +196,49 @@ def normalize_confusion(confusion: np.ndarray) -> np.ndarray:
     return normalized
 
 
+def compute_suggested_smooth_tau(
+    decoded_rest_std: np.ndarray,
+    target_counts: float,
+    loop_hz: float,
+) -> np.ndarray:
+    """Suggest a per-axis one-pole low-pass time constant (seconds).
+
+    The goal is a *uniform* residual jitter floor: smooth each axis just enough
+    to pull its decoded rest-noise std down to ``target_counts`` output units, so
+    every axis feels equally quiet rather than equally fast. Naturally noisier
+    axes (in absolute output counts) get a longer time constant.
+
+    Derived from the exact steady-state noise gain of a one-pole low-pass,
+    ``sigma_out^2 = sigma_in^2 * a / (2 - a)`` with ``a = dt / (tau + dt)``,
+    solved for tau. Axes already at or below the target keep the minimum tau.
+    Results are clamped to [SMOOTH_TAU_MIN_S, SMOOTH_TAU_MAX_S].
+
+    Note this is a white-noise model at a *nominal* loop rate; real sensor noise
+    is correlated and the live loop rate varies, so treat the output as a
+    starting point for hand-tuning, not a final value.
+    """
+    dt = 1.0 / max(float(loop_hz), 1e-6)
+    target = max(float(target_counts), 1e-6)
+    tau = np.empty(6, dtype=float)
+    for i in range(6):
+        sigma_in = float(decoded_rest_std[i])
+        ratio = (target / sigma_in) ** 2 if sigma_in > target else 1.0
+        if ratio >= 1.0:
+            value = SMOOTH_TAU_MIN_S
+        else:
+            value = dt * (1.0 - ratio) / (2.0 * ratio)
+        tau[i] = min(SMOOTH_TAU_MAX_S, max(SMOOTH_TAU_MIN_S, value))
+    return np.round(tau, 3)
+
+
 def compute_calibration(
     rest_samples: Sequence[SampleInput],
     captures: Mapping[str, Sequence[SampleInput]],
     *,
     target_output: float = 300.0,
     ridge: float = 0.03,
+    smoothing_target_counts: float = 1.0,
+    loop_hz: float = 100.0,
 ) -> CalibrationResult:
     rest_matrix, rest_mean, response = build_response_matrix(rest_samples, captures)
     rest_std = rest_matrix.std(axis=0, ddof=1) if rest_matrix.shape[0] > 1 else np.zeros(9)
@@ -213,6 +263,9 @@ def compute_calibration(
     decoded_rest = rest_deltas @ output_matrix.T
     decoded_std = decoded_rest.std(axis=0, ddof=1) if decoded_rest.shape[0] > 1 else np.zeros(6)
     deadzone = np.maximum(5.0, np.ceil(decoded_std * 4.0))
+    suggested_smooth_tau = compute_suggested_smooth_tau(
+        decoded_std, smoothing_target_counts, loop_hz
+    )
 
     rest_noise_norm = max(float(np.linalg.norm(rest_std)), 1e-9)
     signal_to_noise = np.array(
@@ -263,6 +316,10 @@ def compute_calibration(
         signal_to_noise=signal_to_noise,
         warnings=warnings,
         can_generate_header=can_generate_header,
+        decoded_rest_std=decoded_std,
+        suggested_smooth_tau=suggested_smooth_tau,
+        smoothing_target_counts=float(smoothing_target_counts),
+        smoothing_loop_hz=float(loop_hz),
     )
 
 
@@ -322,6 +379,10 @@ def diagnostics_dict(result: CalibrationResult, generated_at: str) -> dict:
         "confusion_matrix": array_to_list(result.confusion_matrix),
         "normalized_confusion_matrix": array_to_list(result.normalized_confusion_matrix),
         "signal_to_noise": array_to_list(result.signal_to_noise),
+        "decoded_rest_std": array_to_list(result.decoded_rest_std),
+        "suggested_smooth_tau": array_to_list(result.suggested_smooth_tau),
+        "smoothing_target_counts": result.smoothing_target_counts,
+        "smoothing_loop_hz": result.smoothing_loop_hz,
         "warnings": result.warnings,
         "can_generate_header": result.can_generate_header,
     }
@@ -335,6 +396,16 @@ def write_report(path: Path, result: CalibrationResult, generated_at: str,
     )
     deadzone_lines = "\n".join(
         f"- {axis}: {result.deadzone[i]:.1f}" for i, axis in enumerate(AXES)
+    )
+    smooth_tau_lines = "\n".join(
+        f"- {axis}: {result.suggested_smooth_tau[i]:.3f} s "
+        f"(rest noise {result.decoded_rest_std[i]:.2f})"
+        for i, axis in enumerate(AXES)
+    )
+    smooth_tau_cpp = (
+        "const float SMOOTH_TAU_S[6] = {"
+        + ", ".join(cpp_float(v) for v in result.suggested_smooth_tau)
+        + "};  // {Tx, Ty, Tz, Rx, Ry, Rz}"
     )
     confusion_rows = ["| axis | " + " | ".join(AXES) + " |"]
     confusion_rows.append("| --- | " + " | ".join("---" for _ in AXES) + " |")
@@ -367,6 +438,21 @@ Generated: {generated_at}
 ## Recommended Dead Zones
 
 {deadzone_lines}
+
+## Suggested Smoothing
+
+Per-axis one-pole low-pass time constant, sized to bring each axis's decoded
+rest-noise down to a uniform ~{result.smoothing_target_counts:g}-count jitter
+floor at a nominal {result.smoothing_loop_hz:g} Hz loop rate. This is a
+data-driven *starting point* for the feel parameter — unlike the dead zones it
+is **not** written into `CalibrationData.h`. Copy the line below into
+`Config.h` and tune to taste:
+
+{smooth_tau_lines}
+
+```cpp
+{smooth_tau_cpp}
+```
 
 ## Normalized Confusion Matrix
 
@@ -521,6 +607,20 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--target-output", type=float, default=300.0)
     parser.add_argument("--ridge", type=float, default=0.03)
     parser.add_argument(
+        "--smoothing-target",
+        type=float,
+        default=1.0,
+        help="Residual output-jitter floor (counts) the suggested per-axis "
+        "smoothing aims for. Lower = heavier smoothing across all axes.",
+    )
+    parser.add_argument(
+        "--loop-hz",
+        type=float,
+        default=100.0,
+        help="Nominal firmware loop rate used to convert the smoothing target "
+        "into a time constant (the firmware's fallback dt is 100 Hz).",
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         default=Path(__file__).resolve().parent / "out",
@@ -561,6 +661,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         captures,
         target_output=args.target_output,
         ridge=args.ridge,
+        smoothing_target_counts=args.smoothing_target,
+        loop_hz=args.loop_hz,
     )
 
     json_path.write_text(

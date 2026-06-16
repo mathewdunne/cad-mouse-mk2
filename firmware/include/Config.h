@@ -28,8 +28,11 @@ const int SIGN_AXIS[6] = {+1, -1, +1, -1, -1, -1};
 const float DEAD_T = 16.0;
 const float DEAD_R = 20.0;
 
-// Smoothing
-const float SMOOTH_TAU_S = 0.08;
+// Smoothing (one-pole low-pass time constant, seconds, per axis [Tx,Ty,Tz,Rx,Ry,Rz]).
+// Longer tau = heavier smoothing = quieter but laggier. The low-SNR translation
+// axes (Tx/Ty, see the calibration report) get more smoothing; the high-SNR
+// rotations stay short so they remain responsive.
+const float SMOOTH_TAU_S[6] = {0.132f, 0.128f, 0.073f, 0.149f, 0.02f, 0.034f};
 
 // Final axis output range
 const float AXIS_LIMIT = 350.0;
