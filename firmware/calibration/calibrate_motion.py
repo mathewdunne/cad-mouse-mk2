@@ -270,7 +270,12 @@ def cpp_float(value: float) -> str:
     value = float(value)
     if abs(value) < 5e-8:
         value = 0.0
-    return f"{value:.9g}f"
+    text = f"{value:.9g}"
+    # %g drops the decimal point for whole numbers (e.g. "21"), which would make
+    # the 'f' suffix a user-defined-literal lookup ("21f") and fail to compile.
+    if not any(c in text for c in ".eEnN"):
+        text += ".0"
+    return f"{text}f"
 
 
 def generate_header(result: CalibrationResult, generated_at: str) -> str:
