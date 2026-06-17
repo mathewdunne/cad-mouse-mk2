@@ -24,6 +24,15 @@ void IdleState::runMotionPipeline(float dt, unsigned long now) {
   float raw[9] = {};
   sensorController.readRaw(raw);
 
+  if (telemetryController.rawModeActive()) {
+    lastActivityMs_ = now;
+    telemetryController.publishRaw(raw);
+
+    float zeroMotion[6] = {};
+    hidController.sendReports(zeroMotion, inputController.buttonBits());
+    return;
+  }
+
   float motion[6] = {};
   motionController.compute(raw, sensorController.baseline(), dt, motion);
 
